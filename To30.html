@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypt Banned Words in XSS Payload</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            position: relative;
+        }
+        h2 {
+            color: #4a4a4a;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        input, button, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.02);
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .button-group button {
+            flex: 1;
+            margin: 5px;
+            min-width: 150px;
+        }
+        .error-message {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+        .encoding-options {
+            display: flex;
+            flex-direction: column;
+        }
+        .encoding-options label {
+            margin: 5px 0;
+        }
+        .loader {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin: -15px 0 0 -15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s, transform 0.3s;
+        }
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Encrypt Banned Words in XSS Payload</h2>
+        <input type="text" id="payloadInput" placeholder="Enter payload here" oninput="validateInput()">
+        <input type="text" id="blockedWords" placeholder="Enter banned words separated by commas (e.g., alert)" oninput="validateInput()">
+        <div class="encoding-options">
+            <label><input type="radio" name="encoding" value="base30" checked onchange="updateEncoding()"> Base 30</label>
+            <label><input type="radio" name="encoding" value="hex" onchange="updateEncoding()"> Hexadecimal</label>
+            <label><input type="radio" name="encoding" value="base64" onchange="updateEncoding()"> Base64</label>
+        </div>
+        <div id="errorMessage" class="error-message"></div>
+        <div class="button-group">
+            <button onclick="encodePayload()" aria-label="Encrypt payload">Encrypt</button>
+            <button id="copyButton" onclick="copyToClipboard()" aria-label="Copy encrypted payload to clipboard">Copy to Clipboard</button>
+        </div>
+        <textarea id="encodedPayload" placeholder="The encrypted payload will appear here" readonly></textarea>
+        <div class="loader" id="loader"></div>
+    </div>
+    <div id="toast" class="toast"></div>
+
+    <script>
+        function convertToBase30(num) {
+            const base30Chars = '0123456789ABCDEFGHIJKLMNOPQRST';
+            let result = '';
+            while (num > 0) {
+                result = base30Chars[num % 30] + result;
+                num = Math.floor(num / 30);
+            }
+            return result || '0'; // Return '0' if num is 0
+        }
+
+        function validateInput() {
+            const payload = document.getElementById('payloadInput').value.trim();
+            const blockedWords = document.getElementById('blockedWords').value.split(',').map(w => w.trim());
+            const errorMessage = document.getElementById('errorMessage');
+
+            if (!payload) {
+                errorMessage.textContent = 'Please enter a payload.';
+                errorMessage.style.display = 'block';
+            } else if (blockedWords.length === 0 || blockedWords.some(word => word === '')) {
+                errorMessage.textContent = 'Please enter valid banned words separated by commas.';
+                errorMessage.style.display = 'block';
+            } else {
+                errorMessage.style.display = 'none';
+            }
+        }
+
+        function updateEncoding() {
+            // يمكنك إضافة منطق إضافي هنا إذا كنت تريد تحديث واجهة المستخدم بناءً على نوع التشفير المختار
+        }
+
+        function encodePayload() {
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block'; // إظهار حالة التحميل
+
+            const payload = document.getElementById('payloadInput').value.trim();
+            const blockedWords = document.getElementById('blockedWords').value.split(',').map(w => w.trim());
+            const encoding = document.querySelector('input[name="encoding"]:checked').value;
+            const errorMessage = document.getElementById('errorMessage');
+            const encodedPayload = document.getElementById('encodedPayload');
+
+            validateInput(); // التحقق مرة أخرى قبل التشفير
+
+            if (errorMessage.style.display === 'block') {
+                loader.style.display = 'none';
+                return;
+            }
+
+            try {
+                let encoded = payload;
+                for (let word of blockedWords) {
+                    let encodedWord = '';
+                    switch(encoding) {
+                        case 'base30':
+                            for (let i = 0; i < word.length; i++) {
+                                encodedWord += convertToBase30(word.charCodeAt(i));
+                                if (i < word.length - 1) encodedWord += '.';
+                            }
+                            encodedWord = `[${encodedWord}..toString(30)]`;
+                            break;
+                        case 'hex':
+                            encodedWord = word.split('').map(char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+                            encodedWord = `String.fromCharCode(${encodedWord.match(/.{1,2}/g).join(',0x')})`;
+                            break;
+                        case 'base64':
+                            encodedWord = btoa(word);
+                            break;
+                    }
+                    encoded = encoded.replace(new RegExp(word, 'g'), encodedWord);
+                }
+                encodedPayload.value = encoded;
+                showToast('Payload encrypted successfully!');
+            } catch (error) {
+                errorMessage.textContent = 'An error occurred during encryption: ' + error.message;
+                errorMessage.style.display = 'block';
+            } finally {
+                loader.style.display = 'none'; // إخفاء حالة التحميل بعد الانتهاء
+            }
+        }
+
+        function copyToClipboard() {
+            const encodedText = document.getElementById('encodedPayload').value;
+            if (encodedText) {
+                navigator.clipboard.writeText(encodedText)
+                    .then(() => {
+                        showToast('Payload copied to clipboard!');
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy text: ', err);
+                        showToast('Failed to copy to clipboard.', 'error');
+                    });
+            } else {
+                showToast('No payload to copy.', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type === 'error' ? 'error' : 'success'}`;
+            toast.classList.add('show');
+
+            setTimeout(function(){ 
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
